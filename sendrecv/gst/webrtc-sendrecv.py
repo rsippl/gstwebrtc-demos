@@ -27,8 +27,8 @@ webrtcbin name=sendrecv bundle-policy=max-bundle
 
 
 class WebRTCClient:
-    def __init__(self, id_, peer_id, server):
-        self.id_ = id_
+    def __init__(self, peer_id, server):
+        self.id_ = None
         self.conn = None
         self.pipe = None
         self.webrtc = None
@@ -38,7 +38,7 @@ class WebRTCClient:
     async def connect(self):
         sslctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
         self.conn = await websockets.connect(self.server, ssl=sslctx)
-        await self.conn.send('HELLO %d' % our_id)
+        await self.conn.send('HELLO')
 
     async def setup_call(self):
         await self.conn.send('SESSION {}'.format(self.peer_id))
@@ -139,7 +139,11 @@ class WebRTCClient:
     async def loop(self):
         assert self.conn
         async for message in self.conn:
-            if message == 'HELLO':
+            if message.startswith('HELLO'):
+                tokens = message.split(maxsplit=1)
+                if len(tokens) > 1:
+                    self.id_ = tokens[1]
+                    print("Got UID from server:", self.id_)
                 await self.setup_call()
             elif message == 'SESSION_OK':
                 self.start_pipeline()
@@ -169,8 +173,7 @@ if __name__ == '__main__':
     parser.add_argument('peerid', help='String ID of the peer to connect to')
     parser.add_argument('--server', help='Signalling server to connect to, eg "wss://127.0.0.1:8443"')
     args = parser.parse_args()
-    our_id = random.randrange(10, 10000)
-    c = WebRTCClient(our_id, args.peerid, args.server)
+    c = WebRTCClient(args.peerid, args.server)
     asyncio.get_event_loop().run_until_complete(c.connect())
     res = asyncio.get_event_loop().run_until_complete(c.loop())
     sys.exit(res)
