@@ -16,19 +16,11 @@ let default_peer_id;
 // Override with your own STUN servers if you want
 const rtc_configuration = {iceServers: [{urls: "stun:stun.services.mozilla.com"},
                                       {urls: "stun:stun.l.google.com:19302"}]};
-// The default constraints that will be attempted. Can be overriden by the user.
-const default_constraints = {video: true, audio: true};
 
 let connect_attempts = 0;
 let peerConnection;
 let sendChannel;
 let ws_conn;
-// Promise for local stream after constraints are approved by the user
-let local_stream_promise;
-
-function getRandomId() {
-    return Math.floor(Math.random() * (9000 - 10) + 10).toString();
-}
 
 function resetState() {
     // This will call onServerClose()
@@ -60,14 +52,6 @@ function setError(text) {
 }
 
 function resetVideo() {
-    // Release the webcam and mic
-    if (local_stream_promise)
-        local_stream_promise.then(stream => {
-            if (stream) {
-                stream.getTracks().forEach(function (track) { track.stop(); });
-            }
-        });
-
     // Reset the video element and stop showing the last received frame
     let videoElement = getVideoElement();
     videoElement.pause();
@@ -81,12 +65,9 @@ function onIncomingSDP(sdp) {
         setStatus("Remote SDP set");
         if (sdp.type !== "offer")
             return;
-        setStatus("Got SDP offer");
-        local_stream_promise.then((stream) => {
-            setStatus("Got local stream, creating answer");
-            peerConnection.createAnswer()
+        setStatus("Got SDP offer, creating answer");
+        peerConnection.createAnswer()
             .then(onLocalDescription).catch(setError);
-        }).catch(setError);
     }).catch(setError);
 }
 
@@ -161,30 +142,6 @@ function onServerError(event) {
     window.setTimeout(websocketServerConnect, 3000);
 }
 
-function getConstraintsTextArea() {
-    return document.getElementById('constraints');
-}
-
-function getLocalStream() {
-    let constraints;
-    let constraintsTextArea = getConstraintsTextArea();
-    try {
-        constraints = JSON.parse(constraintsTextArea.value);
-    } catch (e) {
-        console.error(e);
-        setError('ERROR parsing constraints: ' + e.message + ', using default constraints');
-        constraints = default_constraints;
-    }
-    console.log(JSON.stringify(constraints));
-
-    // Add local stream
-    if (navigator.mediaDevices.getUserMedia) {
-        return navigator.mediaDevices.getUserMedia(constraints);
-    } else {
-        errorUserMediaHandler();
-    }
-}
-
 function websocketServerConnect() {
     connect_attempts++;
     if (connect_attempts > 3) {
@@ -195,10 +152,7 @@ function websocketServerConnect() {
     let span = document.getElementById("status");
     span.classList.remove('error');
     span.textContent = '';
-    // Populate constraints
-    let constraintsTextArea = getConstraintsTextArea();
-    if (constraintsTextArea.value === '')
-        constraintsTextArea.value = JSON.stringify(default_constraints);
+
     ws_port = ws_port || '8443';
     if (window.location.protocol.startsWith ("file")) {
         ws_server = ws_server || "127.0.0.1";
@@ -225,10 +179,6 @@ function onRemoteTrack(event) {
         console.log('Incoming stream');
         getVideoElement().srcObject = event.streams[0];
     }
-}
-
-function errorUserMediaHandler() {
-    setError("Browser doesn't support getUserMedia!");
 }
 
 const handleDataChannelOpen = (event) =>{
@@ -280,12 +230,6 @@ function createCall(msg) {
     sendChannel.onclose = handleDataChannelClose;
     peerConnection.ondatachannel = onDataChannel;
     peerConnection.ontrack = onRemoteTrack;
-    /* Send our video/audio to the other peer */
-    local_stream_promise = getLocalStream().then((stream) => {
-        console.log('Adding local stream');
-        peerConnection.addStream(stream);
-        return stream;
-    }).catch(setError);
 
     if (!msg.sdp) {
         console.log("WARNING: First message wasn't an SDP message!?");
