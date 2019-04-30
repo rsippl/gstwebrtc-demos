@@ -8,24 +8,25 @@
  */
 
 // Set this to override the automatic detection in websocketServerConnect()
-var ws_server;
-var ws_port;
+let ws_server;
+let ws_port;
 // Set this to use a specific peer id instead of a random one
-var default_peer_id;
+// const default_peer_id=123;
+let default_peer_id;
 // Override with your own STUN servers if you want
-var rtc_configuration = {iceServers: [{urls: "stun:stun.services.mozilla.com"},
+const rtc_configuration = {iceServers: [{urls: "stun:stun.services.mozilla.com"},
                                       {urls: "stun:stun.l.google.com:19302"}]};
 // The default constraints that will be attempted. Can be overriden by the user.
-var default_constraints = {video: true, audio: true};
+const default_constraints = {video: true, audio: true};
 
-var connect_attempts = 0;
-var peer_connection;
-var send_channel;
-var ws_conn;
+let connect_attempts = 0;
+let peerConnection;
+let sendChannel;
+let ws_conn;
 // Promise for local stream after constraints are approved by the user
-var local_stream_promise;
+let local_stream_promise;
 
-function getOurId() {
+function getRandomId() {
     return Math.floor(Math.random() * (9000 - 10) + 10).toString();
 }
 
@@ -45,7 +46,7 @@ function getVideoElement() {
 
 function setStatus(text) {
     console.log(text);
-    var span = document.getElementById("status")
+    let span = document.getElementById("status");
     // Don't set the status if it already contains an error
     if (!span.classList.contains('error'))
         span.textContent = text;
@@ -53,7 +54,7 @@ function setStatus(text) {
 
 function setError(text) {
     console.error(text);
-    var span = document.getElementById("status")
+    let span = document.getElementById("status");
     span.textContent = text;
     span.classList.add('error');
 }
@@ -68,7 +69,7 @@ function resetVideo() {
         });
 
     // Reset the video element and stop showing the last received frame
-    var videoElement = getVideoElement();
+    let videoElement = getVideoElement();
     videoElement.pause();
     videoElement.src = "";
     videoElement.load();
@@ -76,14 +77,14 @@ function resetVideo() {
 
 // SDP offer received from peer, set remote description and create an answer
 function onIncomingSDP(sdp) {
-    peer_connection.setRemoteDescription(sdp).then(() => {
+    peerConnection.setRemoteDescription(sdp).then(() => {
         setStatus("Remote SDP set");
-        if (sdp.type != "offer")
+        if (sdp.type !== "offer")
             return;
         setStatus("Got SDP offer");
         local_stream_promise.then((stream) => {
             setStatus("Got local stream, creating answer");
-            peer_connection.createAnswer()
+            peerConnection.createAnswer()
             .then(onLocalDescription).catch(setError);
         }).catch(setError);
     }).catch(setError);
@@ -92,53 +93,48 @@ function onIncomingSDP(sdp) {
 // Local description was set, send it to peer
 function onLocalDescription(desc) {
     console.log("Got local description: " + JSON.stringify(desc));
-    peer_connection.setLocalDescription(desc).then(function() {
+    peerConnection.setLocalDescription(desc).then(function() {
         setStatus("Sending SDP answer");
-        sdp = {'sdp': peer_connection.localDescription}
+        let sdp = {'sdp': peerConnection.localDescription};
         ws_conn.send(JSON.stringify(sdp));
     });
 }
 
 // ICE candidate received from peer, add it to the peer connection
 function onIncomingICE(ice) {
-    var candidate = new RTCIceCandidate(ice);
-    peer_connection.addIceCandidate(candidate).catch(setError);
+    let candidate = new RTCIceCandidate(ice);
+    peerConnection.addIceCandidate(candidate).catch(setError);
 }
 
 function onServerMessage(event) {
     console.log("Received " + event.data);
-    switch (event.data) {
-        case "HELLO":
-            setStatus("Registered with server, waiting for call");
+    if (event.data === "HELLO") {
+        setStatus("Registered with server, waiting for call");
+    } else {
+        if (event.data.startsWith("ERROR")) {
+            handleIncomingError(event.data);
             return;
-        default:
-            if (event.data.startsWith("ERROR")) {
-                handleIncomingError(event.data);
-                return;
-            }
-            // Handle incoming JSON SDP and ICE messages
-            try {
-                msg = JSON.parse(event.data);
-            } catch (e) {
-                if (e instanceof SyntaxError) {
-                    handleIncomingError("Error parsing incoming JSON: " + event.data);
-                } else {
-                    handleIncomingError("Unknown error parsing response: " + event.data);
-                }
-                return;
-            }
-
-            // Incoming JSON signals the beginning of a call
-            if (!peer_connection)
-                createCall(msg);
-
-            if (msg.sdp != null) {
-                onIncomingSDP(msg.sdp);
-            } else if (msg.ice != null) {
-                onIncomingICE(msg.ice);
+        }
+        let msg;
+        try {
+            msg = JSON.parse(event.data);
+        } catch (e) {
+            if (e instanceof SyntaxError) {
+                handleIncomingError("Error parsing incoming JSON: " + event.data);
             } else {
-                handleIncomingError("Unknown incoming JSON: " + msg);
+                handleIncomingError("Unknown error parsing response: " + event.data);
             }
+            return;
+        }
+        if (!peerConnection)
+            createCall(msg);
+        if (msg.sdp != null) {
+            onIncomingSDP(msg.sdp);
+        } else if (msg.ice != null) {
+            onIncomingICE(msg.ice);
+        } else {
+            handleIncomingError("Unknown incoming JSON: " + msg);
+        }
     }
 }
 
@@ -146,9 +142,9 @@ function onServerClose(event) {
     setStatus('Disconnected from server');
     resetVideo();
 
-    if (peer_connection) {
-        peer_connection.close();
-        peer_connection = null;
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
     }
 
     // Reset after a second
@@ -156,16 +152,20 @@ function onServerClose(event) {
 }
 
 function onServerError(event) {
-    setError("Unable to connect to server, did you add an exception for the certificate?")
+    setError("Unable to connect to server, did you add an exception for the certificate?");
     // Retry after 3 seconds
     window.setTimeout(websocketServerConnect, 3000);
 }
 
+function getConstraintsTextArea() {
+    return document.getElementById('constraints');
+}
+
 function getLocalStream() {
-    var constraints;
-    var textarea = document.getElementById('constraints');
+    let constraints;
+    let constraintsTextArea = getConstraintsTextArea();
     try {
-        constraints = JSON.parse(textarea.value);
+        constraints = JSON.parse(constraintsTextArea.value);
     } catch (e) {
         console.error(e);
         setError('ERROR parsing constraints: ' + e.message + ', using default constraints');
@@ -188,15 +188,15 @@ function websocketServerConnect() {
         return;
     }
     // Clear errors in the status span
-    var span = document.getElementById("status");
+    let span = document.getElementById("status");
     span.classList.remove('error');
     span.textContent = '';
     // Populate constraints
-    var textarea = document.getElementById('constraints');
-    if (textarea.value == '')
-        textarea.value = JSON.stringify(default_constraints);
+    let constraintsTextArea = getConstraintsTextArea();
+    if (constraintsTextArea.value === '')
+        constraintsTextArea.value = JSON.stringify(default_constraints);
     // Fetch the peer id to use
-    peer_id = default_peer_id || getOurId();
+    let peer_id = default_peer_id || getRandomId();
     ws_port = ws_port || '8443';
     if (window.location.protocol.startsWith ("file")) {
         ws_server = ws_server || "127.0.0.1";
@@ -205,7 +205,7 @@ function websocketServerConnect() {
     } else {
         throw new Error ("Don't know how to connect to the signalling server with uri" + window.location);
     }
-    var ws_url = 'wss://' + ws_server + ':' + ws_port
+    let ws_url = 'wss://' + ws_server + ':' + ws_port;
     setStatus("Connecting to server " + ws_url);
     ws_conn = new WebSocket(ws_url);
     /* When connected, immediately register with the server */
@@ -240,12 +240,12 @@ const handleDataChannelMessageReceived = (event) =>{
     setStatus("Received data channel message");
     if (typeof event.data === 'string' || event.data instanceof String) {
         console.log('Incoming string message: ' + event.data);
-        textarea = document.getElementById("text")
+        let textarea = document.getElementById("text");
         textarea.value = textarea.value + '\n' + event.data
     } else {
         console.log('Incoming data message');
     }
-    send_channel.send("Hi! (from browser)");
+    sendChannel.send("Hi! (from browser)");
 };
 
 const handleDataChannelError = (error) =>{
@@ -271,18 +271,18 @@ function createCall(msg) {
 
     console.log('Creating RTCPeerConnection');
 
-    peer_connection = new RTCPeerConnection(rtc_configuration);
-    send_channel = peer_connection.createDataChannel('label', null);
-    send_channel.onopen = handleDataChannelOpen;
-    send_channel.onmessage = handleDataChannelMessageReceived;
-    send_channel.onerror = handleDataChannelError;
-    send_channel.onclose = handleDataChannelClose;
-    peer_connection.ondatachannel = onDataChannel;
-    peer_connection.ontrack = onRemoteTrack;
+    peerConnection = new RTCPeerConnection(rtc_configuration);
+    sendChannel = peerConnection.createDataChannel('label', null);
+    sendChannel.onopen = handleDataChannelOpen;
+    sendChannel.onmessage = handleDataChannelMessageReceived;
+    sendChannel.onerror = handleDataChannelError;
+    sendChannel.onclose = handleDataChannelClose;
+    peerConnection.ondatachannel = onDataChannel;
+    peerConnection.ontrack = onRemoteTrack;
     /* Send our video/audio to the other peer */
     local_stream_promise = getLocalStream().then((stream) => {
         console.log('Adding local stream');
-        peer_connection.addStream(stream);
+        peerConnection.addStream(stream);
         return stream;
     }).catch(setError);
 
@@ -290,14 +290,14 @@ function createCall(msg) {
         console.log("WARNING: First message wasn't an SDP message!?");
     }
 
-    peer_connection.onicecandidate = (event) => {
-	// We have a candidate, send it to the remote party with the
-	// same uuid
-	if (event.candidate == null) {
-            console.log("ICE Candidate was null, done");
-            return;
-	}
-	ws_conn.send(JSON.stringify({'ice': event.candidate}));
+    peerConnection.onicecandidate = (event) => {
+        // We have a candidate, send it to the remote party with the
+        // same uuid
+        if (event.candidate == null) {
+                console.log("ICE Candidate was null, done");
+                return;
+        }
+        ws_conn.send(JSON.stringify({'ice': event.candidate}));
     };
 
     setStatus("Created peer connection for call, waiting for SDP");

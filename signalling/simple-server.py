@@ -20,7 +20,8 @@ from concurrent.futures._base import TimeoutError
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--addr', default='0.0.0.0', help='Address to listen on')
 parser.add_argument('--port', default=8443, type=int, help='Port to listen on')
-parser.add_argument('--keepalive-timeout', dest='keepalive_timeout', default=30, type=int, help='Timeout for keepalive (in seconds)')
+parser.add_argument('--keepalive-timeout', dest='keepalive_timeout', default=30, type=int,
+                    help='Timeout for keepalive (in seconds)')
 parser.add_argument('--cert-path', default=os.path.dirname(__file__))
 parser.add_argument('--disable-ssl', default=False, help='Disable ssl', action='store_true')
 
@@ -43,6 +44,7 @@ sessions = dict()
 # Room dict with a set of peers in each room
 rooms = dict()
 
+
 ############### Helper functions ###############
 
 async def recv_msg_ping(ws, raddr):
@@ -59,6 +61,7 @@ async def recv_msg_ping(ws, raddr):
             await ws.ping()
     return msg
 
+
 async def disconnect(ws, peer_id):
     '''
     Remove @peer_id from the list of sessions and close our connection to it.
@@ -72,6 +75,7 @@ async def disconnect(ws, peer_id):
     if ws and ws.open:
         # Don't care about errors
         asyncio.ensure_future(ws.close(reason='hangup'))
+
 
 async def cleanup_session(uid):
     if uid in sessions:
@@ -89,6 +93,7 @@ async def cleanup_session(uid):
                 del peers[other_id]
                 await wso.close()
 
+
 async def cleanup_room(uid, room_id):
     room_peers = rooms[room_id]
     if uid not in room_peers:
@@ -100,6 +105,7 @@ async def cleanup_room(uid, room_id):
         print('room {}: {} -> {}: {}'.format(room_id, uid, pid, msg))
         await wsp.send(msg)
 
+
 async def remove_peer(uid):
     await cleanup_session(uid)
     if uid in peers:
@@ -109,6 +115,7 @@ async def remove_peer(uid):
         del peers[uid]
         await ws.close()
         print("Disconnected from peer {!r} at {!r}".format(uid, raddr))
+
 
 ############### Handler functions ###############
 
@@ -129,7 +136,7 @@ async def connection_handler(ws, uid):
             if peer_status == 'session':
                 other_id = sessions[uid]
                 wso, oaddr, status = peers[other_id]
-                assert(status == 'session')
+                assert (status == 'session')
                 print("{} -> {}: {}".format(uid, other_id, msg))
                 await wso.send(msg)
             # We're in a room, accept room-specific commands
@@ -150,8 +157,8 @@ async def connection_handler(ws, uid):
                     print('room {}: {} -> {}: {}'.format(room_id, uid, other_id, msg))
                     await wso.send(msg)
                 elif msg == 'ROOM_PEER_LIST':
-                    room_id = peers[peer_id][2]
-                    room_peers = ' '.join([pid for pid in rooms[room_id] if pid != peer_id])
+                    room_id = peers[uid][2]
+                    room_peers = ' '.join([pid for pid in rooms[room_id] if pid != uid])
                     msg = 'ROOM_PEER_LIST {}'.format(room_peers)
                     print('room {}: -> {}: {}'.format(room_id, uid, msg))
                     await ws.send(msg)
@@ -209,6 +216,7 @@ async def connection_handler(ws, uid):
         else:
             print('Ignoring unknown message {!r} from {!r}'.format(msg, uid))
 
+
 async def hello_peer(ws):
     '''
     Exchange hello, register peer
@@ -219,12 +227,13 @@ async def hello_peer(ws):
     if hello != 'HELLO':
         await ws.close(code=1002, reason='invalid protocol')
         raise Exception("Invalid hello from {!r}".format(raddr))
-    if not uid or uid in peers or uid.split() != [uid]: # no whitespace
+    if not uid or uid in peers or uid.split() != [uid]:  # no whitespace
         await ws.close(code=1002, reason='invalid peer uid')
         raise Exception("Invalid uid {!r} from {!r}".format(uid, raddr))
     # Send back a HELLO
     await ws.send('HELLO')
     return uid
+
 
 async def handler(ws, path):
     '''
@@ -239,6 +248,7 @@ async def handler(ws, path):
         print("Connection to peer {!r} closed, exiting handler".format(raddr))
     finally:
         await remove_peer(peer_id)
+
 
 sslctx = None
 if not options.disable_ssl:

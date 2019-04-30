@@ -2,16 +2,18 @@ import random
 import ssl
 import websockets
 import asyncio
-import os
 import sys
 import json
 import argparse
 
 import gi
+
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst
+
 gi.require_version('GstWebRTC', '1.0')
 from gi.repository import GstWebRTC
+
 gi.require_version('GstSdp', '1.0')
 from gi.repository import GstSdp
 
@@ -22,6 +24,7 @@ webrtcbin name=sendrecv bundle-policy=max-bundle
  audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
  queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
 '''
+
 
 class WebRTCClient:
     def __init__(self, id_, peer_id, server):
@@ -42,7 +45,7 @@ class WebRTCClient:
 
     def send_sdp_offer(self, offer):
         text = offer.sdp.as_text()
-        print ('Sending offer:\n%s' % text)
+        print('Sending offer:\n%s' % text)
         msg = json.dumps({'sdp': {'type': 'offer', 'sdp': text}})
         loop = asyncio.new_event_loop()
         loop.run_until_complete(self.conn.send(msg))
@@ -67,7 +70,7 @@ class WebRTCClient:
 
     def on_incoming_decodebin_stream(self, _, pad):
         if not pad.has_current_caps():
-            print (pad, 'has no caps, ignoring')
+            print(pad, 'has no caps, ignoring')
             return
 
         caps = pad.get_current_caps()
@@ -114,13 +117,13 @@ class WebRTCClient:
         self.pipe.set_state(Gst.State.PLAYING)
 
     async def handle_sdp(self, message):
-        assert (self.webrtc)
+        assert self.webrtc
         msg = json.loads(message)
         if 'sdp' in msg:
             sdp = msg['sdp']
-            assert(sdp['type'] == 'answer')
+            assert (sdp['type'] == 'answer')
             sdp = sdp['sdp']
-            print ('Received answer:\n%s' % sdp)
+            print('Received answer:\n%s' % sdp)
             res, sdpmsg = GstSdp.SDPMessage.new()
             GstSdp.sdp_message_parse_buffer(bytes(sdp.encode()), sdpmsg)
             answer = GstWebRTC.WebRTCSessionDescription.new(GstWebRTC.WebRTCSDPType.ANSWER, sdpmsg)
@@ -141,7 +144,7 @@ class WebRTCClient:
             elif message == 'SESSION_OK':
                 self.start_pipeline()
             elif message.startswith('ERROR'):
-                print (message)
+                print(message)
                 return 1
             else:
                 await self.handle_sdp(message)
@@ -158,7 +161,7 @@ def check_plugins():
     return True
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     Gst.init(None)
     if not check_plugins():
         sys.exit(1)
