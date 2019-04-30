@@ -62,21 +62,6 @@ async def recv_msg_ping(ws, raddr):
     return msg
 
 
-async def disconnect(ws, peer_id):
-    '''
-    Remove @peer_id from the list of sessions and close our connection to it.
-    This informs the peer that the session and all calls have ended, and it
-    must reconnect.
-    '''
-    global sessions
-    if peer_id in sessions:
-        del sessions[peer_id]
-    # Close connection
-    if ws and ws.open:
-        # Don't care about errors
-        asyncio.ensure_future(ws.close(reason='hangup'))
-
-
 async def cleanup_session(uid):
     if uid in sessions:
         other_id = sessions[uid]
@@ -149,6 +134,7 @@ async def connection_handler(ws, uid):
                                       ''.format(other_id))
                         continue
                     wso, oaddr, status = peers[other_id]
+                    room_id = peers[uid][2]
                     if status != room_id:
                         await ws.send('ERROR peer {!r} is not in the room'
                                       ''.format(other_id))
