@@ -2,53 +2,8 @@
 
 All demos use the same signalling server in the `signalling/` directory
 
-## Downloading GStreamer
-
-The GStreamer WebRTC implementation has now been merged upstream, and is in the GStreamer 1.14 release. Binaries can be found here:
-
-https://gstreamer.freedesktop.org/download/
-
-## Building GStreamer from source
-
-If you don't want to use the binaries provided by GStreamer or on your Linux distro, you can build GStreamer from source.
-
-The easiest way to build the webrtc plugin and all the plugins it needs, is to [use Cerbero](https://gstreamer.freedesktop.org/documentation/installing/building-from-source-using-cerbero.html). These instructions should work out of the box for all platforms, including cross-compiling for iOS and Android.
-
-One thing to note is that it's written in Python 2, so you may need to replace all instances of `./cerbero-uninstalled` (or `cerbero`) with `python2 cerbero-uninstalled` or whatever Python 2 is called on your platform.
-
-## Building GStreamer manually from source
-
-Here are the commands for Ubuntu 18.04.
-
-```
-sudo apt-get install -y gstreamer1.0-tools gstreamer1.0-nice gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-good libgstreamer1.0-dev git libglib2.0-dev libgstreamer-plugins-bad1.0-dev libsoup2.4-dev libjson-glib-dev
-```
-
-For hacking on the webrtc plugin, you may want to build manually using the git repositories:
-
- - http://cgit.freedesktop.org/gstreamer/gstreamer
- - http://cgit.freedesktop.org/gstreamer/gst-plugins-base
- - http://cgit.freedesktop.org/gstreamer/gst-plugins-good
- - http://cgit.freedesktop.org/gstreamer/gst-plugins-bad
- - http://cgit.freedesktop.org/libnice/libnice
-
-You can build these with either Autotools gst-uninstalled:
-
-https://arunraghavan.net/2014/07/quick-start-guide-to-gst-uninstalled-1-x/
-
-Or with Meson gst-build:
-
-https://cgit.freedesktop.org/gstreamer/gst-build/
-
-You may need to install the following packages using your package manager:
-
-json-glib, libsoup, libnice, libnice-gstreamer1 (the gstreamer plugin for libnice, called gstreamer1.0-nice Debian)
-
-## Filing bugs
-
-Please only file bugs about the demos here. Bugs about GStreamer's WebRTC implementation should be filed on the [GStreamer bugzilla](https://bugzilla.gnome.org/enter_bug.cgi?product=GStreamer&component=gst-plugins-bad).
-
-You can also find us on IRC by joining #gstreamer @ FreeNode.
+For the Python code, make sure you have GStreamer 1.14.2 or later. This means that if you're on Ubuntu
+18.10 or older, you'll need to build from source, e.g. via gst-build.
 
 ## Documentation
 
