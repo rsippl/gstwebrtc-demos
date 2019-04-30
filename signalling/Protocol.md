@@ -29,6 +29,8 @@ This protocol builds upon https://github.com/shanet/WebRTC-Example/
 * Connect to the websocket server
 * Send `HELLO <uid>` where `<uid>` is a string which will uniquely identify this peer
 * Receive `HELLO`
+* If you omit the UID in the `HELLO` message, the server will generate it (as an UUID)
+and include it in the response: `HELLO <uid>`
 * Any other message starting with `ERROR` is an error.
 
 ### 1-1 calls with a 'session'

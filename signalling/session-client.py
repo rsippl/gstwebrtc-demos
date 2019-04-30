@@ -7,13 +7,13 @@
 #  Author: Nirbheek Chauhan <nirbheek@centricular.com>
 #
 
-import sys
-import ssl
-import json
-import uuid
-import asyncio
-import websockets
 import argparse
+import asyncio
+import json
+import ssl
+import sys
+
+import websockets
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--url', default='wss://localhost:8443', help='URL to connect to')
@@ -23,7 +23,6 @@ options = parser.parse_args(sys.argv[1:])
 
 SERVER_ADDR = options.url
 CALLEE_ID = options.call
-PEER_ID = 'ws-test-client-' + str(uuid.uuid4())[:6]
 
 sslctx = False
 if SERVER_ADDR.startswith(('wss://', 'https://')):
@@ -32,6 +31,7 @@ if SERVER_ADDR.startswith(('wss://', 'https://')):
     sslctx.check_hostname = False
     sslctx.verify_mode = ssl.CERT_NONE
 
+
 def reply_sdp_ice(msg):
     # Here we'd parse the incoming JSON message for ICE and SDP candidates
     print("Got: " + msg)
@@ -39,15 +39,22 @@ def reply_sdp_ice(msg):
     print("Sent: " + reply)
     return reply
 
+
 def send_sdp_ice():
     reply = json.dumps({'sdp': 'initial sdp'})
     print("Sent: " + reply)
     return reply
 
+
 async def hello():
     async with websockets.connect(SERVER_ADDR, ssl=sslctx) as ws:
-        await ws.send('HELLO ' + PEER_ID)
-        assert(await ws.recv() == 'HELLO')
+        await ws.send('HELLO')
+        res = await ws.recv()
+        res = res.split(maxsplit=1)
+        assert (res[0] == 'HELLO')
+        if len(res) > 1:
+            uid = res[1]
+            print("Got UID from server:", uid)
 
         # Initiate call if requested
         if CALLEE_ID:
@@ -63,7 +70,7 @@ async def hello():
                 return
             if sent_sdp:
                 print('Got reply sdp: ' + msg)
-                return # Done
+                return  # Done
             if CALLEE_ID:
                 if msg == 'SESSION_OK':
                     await ws.send(send_sdp_ice())
@@ -73,9 +80,8 @@ async def hello():
                     return
             else:
                 await ws.send(reply_sdp_ice(msg))
-                return # Done
+                return  # Done
 
-print('Our uid is {!r}'.format(PEER_ID))
 
 try:
     asyncio.get_event_loop().run_until_complete(hello())

@@ -10,7 +10,6 @@
 import sys
 import ssl
 import json
-import uuid
 import asyncio
 import websockets
 import argparse
@@ -22,7 +21,6 @@ parser.add_argument('--room', default=None, help='the room to join')
 options = parser.parse_args(sys.argv[1:])
 
 SERVER_ADDR = options.url
-PEER_ID = 'ws-test-client-' + str(uuid.uuid4())[:6]
 ROOM_ID = options.room
 if ROOM_ID is None:
     print('--room argument is required')
@@ -35,6 +33,7 @@ if SERVER_ADDR.startswith(('wss://', 'https://')):
     sslctx.check_hostname = False
     sslctx.verify_mode = ssl.CERT_NONE
 
+
 def get_answer_sdp(offer, peer_id):
     # Here we'd parse the incoming JSON message for ICE and SDP candidates
     print("Got: " + offer)
@@ -43,16 +42,23 @@ def get_answer_sdp(offer, peer_id):
     print("Sent: " + answer)
     return answer
 
+
 def get_offer_sdp(peer_id):
     sdp = json.dumps({'sdp': 'initial sdp'})
     offer = 'ROOM_PEER_MSG {} {}'.format(peer_id, sdp)
     print("Sent: " + offer)
     return offer
 
+
 async def hello():
     async with websockets.connect(SERVER_ADDR, ssl=sslctx) as ws:
-        await ws.send('HELLO ' + PEER_ID)
-        assert(await ws.recv() == 'HELLO')
+        await ws.send('HELLO')
+        res = await ws.recv()
+        res = res.split(maxsplit=1)
+        assert (res[0] == 'HELLO')
+        if len(res) > 1:
+            uid = res[1]
+            print("Got UID from server:", uid)
 
         await ws.send('ROOM {}'.format(ROOM_ID))
 
@@ -67,6 +73,7 @@ async def hello():
             if msg.startswith('ROOM_OK'):
                 print('Got ROOM_OK for room {!r}'.format(ROOM_ID))
                 _, *room_peers = msg.split()
+                print('Room peers:', ", ".join(room_peers))
                 for peer_id in room_peers:
                     print('Sending offer to {!r}'.format(peer_id))
                     # Create a peer connection for each peer and start
@@ -95,7 +102,6 @@ async def hello():
             print('Unknown msg: {!r}, exiting'.format(msg))
             return
 
-print('Our uid is {!r}'.format(PEER_ID))
 
 try:
     asyncio.get_event_loop().run_until_complete(hello())

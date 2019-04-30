@@ -107,22 +107,25 @@ function onIncomingICE(ice) {
 }
 
 function onServerMessage(event) {
-    console.log("Received " + event.data);
-    if (event.data === "HELLO") {
+    let data = event.data;
+    console.log("Received " + data);
+    if (data.startsWith("HELLO")) {
         setStatus("Registered with server, waiting for call");
+        let tokens = data.split(" ");
+        if (tokens.length > 1)
+            document.getElementById("peer-id").textContent = tokens[1];
     } else {
-        if (event.data.startsWith("ERROR")) {
-            handleIncomingError(event.data);
+        if (data.startsWith("ERROR")) {
+            handleIncomingError(data);
             return;
         }
-        let msg;
         try {
-            msg = JSON.parse(event.data);
+            msg = JSON.parse(data);
         } catch (e) {
             if (e instanceof SyntaxError) {
-                handleIncomingError("Error parsing incoming JSON: " + event.data);
+                handleIncomingError("Error parsing incoming JSON: " + data);
             } else {
-                handleIncomingError("Unknown error parsing response: " + event.data);
+                handleIncomingError("Unknown error parsing response: " + data);
             }
             return;
         }
@@ -195,8 +198,6 @@ function websocketServerConnect() {
     let constraintsTextArea = getConstraintsTextArea();
     if (constraintsTextArea.value === '')
         constraintsTextArea.value = JSON.stringify(default_constraints);
-    // Fetch the peer id to use
-    let peer_id = default_peer_id || getRandomId();
     ws_port = ws_port || '8443';
     if (window.location.protocol.startsWith ("file")) {
         ws_server = ws_server || "127.0.0.1";
@@ -210,8 +211,7 @@ function websocketServerConnect() {
     ws_conn = new WebSocket(ws_url);
     /* When connected, immediately register with the server */
     ws_conn.addEventListener('open', (event) => {
-        document.getElementById("peer-id").textContent = peer_id;
-        ws_conn.send('HELLO ' + peer_id);
+        ws_conn.send('HELLO');
         setStatus("Registering with server");
     });
     ws_conn.addEventListener('error', onServerError);

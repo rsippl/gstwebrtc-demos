@@ -7,15 +7,16 @@
 #  Author: Nirbheek Chauhan <nirbheek@centricular.com>
 #
 
-import os
-import sys
-import ssl
-import logging
-import asyncio
-import websockets
 import argparse
-
+import asyncio
+import logging
+import os
+import ssl
+import sys
+import uuid
 from concurrent.futures._base import TimeoutError
+
+import websockets
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--addr', default='0.0.0.0', help='Address to listen on')
@@ -209,15 +210,23 @@ async def hello_peer(ws):
     '''
     raddr = ws.remote_address
     hello = await ws.recv()
-    hello, uid = hello.split(maxsplit=1)
-    if hello != 'HELLO':
+    hello = hello.split(maxsplit=1)
+    if len(hello) == 0 or hello[0] != 'HELLO':
         await ws.close(code=1002, reason='invalid protocol')
         raise Exception("Invalid hello from {!r}".format(raddr))
-    if not uid or uid in peers or uid.split() != [uid]:  # no whitespace
-        await ws.close(code=1002, reason='invalid peer uid')
-        raise Exception("Invalid uid {!r} from {!r}".format(uid, raddr))
-    # Send back a HELLO
-    await ws.send('HELLO')
+    if len(hello) == 1:
+        uid = str(uuid.uuid4())
+        print("No UID in HELLO, using generated:", uid)
+        # Send back a HELLO with UID
+        await ws.send('HELLO {}'.format(uid))
+    else:
+        uid = hello[1]
+        if uid in peers or uid.split() != [uid]:  # no whitespace
+            await ws.close(code=1002, reason='invalid peer uid')
+            raise Exception("Invalid uid {!r} from {!r}".format(uid, raddr))
+        # Send back a HELLO (without UID)
+        await ws.send('HELLO')
+
     return uid
 
 
